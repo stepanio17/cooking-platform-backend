@@ -1,6 +1,7 @@
 from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 from typing import List
 
 import models
@@ -32,8 +33,13 @@ def create_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
     return db_user
 
 @app.get("/recipes", response_model=List[schemas.RecipeOut])
-def get_recipes(db: Session = Depends(get_db)):
-    return db.query(models.Recipe).all()
+def get_recipes(search: str = None, db: Session = Depends(get_db)):
+    query = db.query(models.Recipe)
+
+    if search:
+        search_lower = f"%{search.lower()}%"
+        query = query.filter(func.lower(models.Recipe.title).like(search_lower))
+    return query.all()
 
 @app.post("/recipes", response_model=schemas.RecipeOut)
 def create_recipe(recipe: schemas.RecipeCreate, db: Session = Depends(get_db)):
