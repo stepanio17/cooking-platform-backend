@@ -1,4 +1,5 @@
-from fastapi import FastAPI, Depends
+from sqlalchemy.exc import IntegrityError
+from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from sqlalchemy import func
@@ -44,7 +45,36 @@ def get_recipes(search: str = None, db: Session = Depends(get_db)):
 @app.post("/recipes", response_model=schemas.RecipeOut)
 def create_recipe(recipe: schemas.RecipeCreate, db: Session = Depends(get_db)):
     db_recipe = models.Recipe(**recipe.model_dump())
-    db.add(db_recipe)
+    try:
+        db.add(db_recipe)
+        db.commit()
+        db.refresh(db_recipe)
+        return db_recipe
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=400, detail="Рецепт с таким названием уже существует")
+
+@app.delete("/recipes/{recipe_id}")
+def delete_recipe(recipe_id: int, db: Session = Depends(get_db)):
+    db_recipe = db.query(models.Recipe).get(recipe_id)
+    if not db_recipe:
+        raise HTTPException(status_code=404, detail="Рецепт не найден")
+    db.delete(db_recipe)
     db.commit()
-    db.refresh(db_recipe)
-    return db_recipe
+    return {"message": "Рецепт был удалён"}
+
+@app.put("/recipes/{recipe_id}", response_model=schemas.RecipeOut)
+def update_recipe(recipe_id: int,  updated_recipe: schemas.RecipeCreate, db: Session = Depends(get_db)):
+    try:
+        db_recipe = db.query(models.Recipe).get(recipe_id)
+        if not db_recipe:
+            raise HTTPException(status_code=404, detail="Рецепт не найден")
+        updated_data = updated_recipe.model_dump()
+        for key, value in updated_data.items():
+            setattr(db_recipe, key, value)
+        db.commit()
+        db.refresh(db_recipe)
+        return db_recipe
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=400, detail="Название уже занято, придумай другое")
