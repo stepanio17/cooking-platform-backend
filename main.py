@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer
 from auth import verify_password, create_access_token, SECRET_KEY, ALGORITHM, get_password_hash
 from sqlalchemy.orm import Session
-from sqlalchemy import func
+from sqlalchemy import func, desc
 from typing import List
 from jose import jwt, JWTError
 
@@ -65,7 +65,7 @@ def create_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
     return new_user
 
 @app.get("/recipes", response_model=List[schemas.RecipeOut])
-def get_recipes(search: str = None, category: str = None, db: Session = Depends(get_db)):
+def get_recipes(search: str = None, category: str = None, sort_by: str = "newest", db: Session = Depends(get_db)):
     query = db.query(models.Recipe)
 
     if search:
@@ -74,6 +74,9 @@ def get_recipes(search: str = None, category: str = None, db: Session = Depends(
 
     if category and category != "Все":
         query = query.filter(models.Recipe.category == category)
+
+    if sort_by == "newest":
+        query = query.order_by(desc(models.Recipe.id))
 
     return query.all()
 
