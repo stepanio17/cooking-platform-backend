@@ -2,7 +2,7 @@ from sqlalchemy.exc import IntegrityError
 from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer
-from auth import verify_password, create_access_token, SECRET_KEY, ALGORITHM
+from auth import verify_password, create_access_token, SECRET_KEY, ALGORITHM, get_password_hash
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from typing import List
@@ -10,7 +10,6 @@ from jose import jwt, JWTError
 
 import models
 import schemas
-from auth import get_password_hash
 from database import engine, get_db
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
@@ -66,12 +65,16 @@ def create_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
     return new_user
 
 @app.get("/recipes", response_model=List[schemas.RecipeOut])
-def get_recipes(search: str = None, db: Session = Depends(get_db)):
+def get_recipes(search: str = None, category: str = None, db: Session = Depends(get_db)):
     query = db.query(models.Recipe)
 
     if search:
         search_lower = f"%{search.lower()}%"
         query = query.filter(func.lower(models.Recipe.title).like(search_lower))
+
+    if category and category != "Все":
+        query = query.filter(models.Recipe.category == category)
+
     return query.all()
 
 @app.post("/recipes", response_model=schemas.RecipeOut)

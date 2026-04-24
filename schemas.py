@@ -5,6 +5,7 @@ class RecipeBase(BaseModel):
     title: str = Field(..., min_length=1, max_length=70, description="Название не может быть пустым")
     description: str = Field(..., min_length=10)
     servings: int = Field(..., gt=0, description="Количество порций должно быть больше нуля")
+    category: Optional[str] = Field(None, max_length=30)
 
 class UserBase(BaseModel):
     username: str
