@@ -1,4 +1,5 @@
 from sqlalchemy import Column, Integer, String, Text, SmallInteger, ForeignKey
+from sqlalchemy.orm import relationship
 from database import Base
 
 class User(Base):
@@ -9,7 +10,8 @@ class User(Base):
     email = Column(String(100), unique=True, nullable=False)
     name = Column(Text)
     surname = Column(Text)
-    password = Column(String(30), nullable=False)
+    hashed_password = Column(String(255), nullable=False)
+    recipes = relationship('Recipe', back_populates='author')
 
 class Recipe(Base):
     __tablename__ = 'recipes'
@@ -19,3 +21,4 @@ class Recipe(Base):
     description = Column(Text)
     servings = Column(SmallInteger, nullable=False, default=4)
     author_id = Column(Integer, ForeignKey('users.id', ondelete='NO ACTION'), nullable=False)
+    author = relationship("User", back_populates="recipes")
