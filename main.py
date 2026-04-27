@@ -1,16 +1,20 @@
 from sqlalchemy.exc import IntegrityError
-from fastapi import FastAPI, Depends, HTTPException
+from fastapi import FastAPI, Depends, HTTPException, File, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer
+from fastapi.staticfiles import StaticFiles
 from auth import verify_password, create_access_token, SECRET_KEY, ALGORITHM, get_password_hash
 from sqlalchemy.orm import Session
 from sqlalchemy import func, desc
 from typing import List
 from jose import jwt, JWTError
-
+import os
+import shutil
 import models
 import schemas
 from database import engine, get_db
+
+os.makedirs("static/images", exist_ok=True)
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
 
@@ -25,6 +29,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
 def get_current_user(token: str = Depends(oauth2_scheme)):
     try:
@@ -118,3 +124,24 @@ def update_recipe(recipe_id: int,  updated_recipe: schemas.RecipeCreate, db: Ses
     except IntegrityError:
         db.rollback()
         raise HTTPException(status_code=400, detail="Название уже занято, придумай другое")
+
+@app.post("/recipes/{recipe_id}/image")
+def upload_recipe_image(
+        recipe_id: int,
+        file: UploadFile = File(...),
+        db: Session = Depends(get_db),
+        current_user_id: int = Depends(get_current_user),
+):
+    db_recipe = db.query(models.Recipe).get(recipe_id)
+
+    if not db_recipe or db_recipe.author_id != current_user_id:
+        raise HTTPException(status_code=403, detail="Нельзя изменить этот рецепт")
+
+    file_location = f"static/images/{recipe_id}_{file.filename}"
+    with open(file_location, "wb+") as file_object:
+        shutil.copyfileobj(file.file, file_object)
+
+    db_recipe.image_url = f"http://127.0.0.1:8000/{file_location}"
+    db.commit()
+
+    return {"info": "Файл сохранён", "url": db_recipe.image_url}
