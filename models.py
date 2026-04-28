@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Text, SmallInteger, ForeignKey
+from sqlalchemy import Column, Integer, String, Text, SmallInteger, ForeignKey, Float
 from sqlalchemy.orm import relationship
 from database import Base
 
@@ -24,3 +24,26 @@ class Recipe(Base):
     image_url = Column(String, nullable=True)
     author_id = Column(Integer, ForeignKey('users.id', ondelete='NO ACTION'), nullable=False)
     author = relationship("User", back_populates="recipes")
+    ingredients = relationship('RecipeIngredient', back_populates='recipe', cascade="all, delete-orphan")
+
+class Ingredient(Base):
+    __tablename__ = 'ingredients'
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(100), nullable=False, unique=True, index=True)
+    recipe_links = relationship('RecipeIngredient', back_populates='ingredient')
+
+class RecipeIngredient(Base):
+    __tablename__ = 'recipe_ingredients'
+
+    id = Column(Integer, primary_key=True, index=True)
+    recipe_id = Column(Integer, ForeignKey('recipes.id', ondelete='CASCADE'), nullable=False)
+    ingredient_id = Column(Integer, ForeignKey('ingredients.id', ondelete='CASCADE'), nullable=False)
+    amount = Column(Float, nullable=False)
+    unit = Column(String(20), nullable=False)
+    recipe = relationship('Recipe', back_populates='ingredients')
+    ingredient = relationship('Ingredient', back_populates='recipe_links')
+
+    @property
+    def name(self):
+        return self.ingredient.name

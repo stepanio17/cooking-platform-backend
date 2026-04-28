@@ -88,9 +88,28 @@ def get_recipes(search: str = None, category: str = None, sort_by: str = "newest
 
 @app.post("/recipes", response_model=schemas.RecipeOut)
 def create_recipe(recipe: schemas.RecipeCreate, db: Session = Depends(get_db), current_user_id: int = Depends(get_current_user)):
-    db_recipe = models.Recipe(**recipe.model_dump(), author_id=current_user_id)
+    db_recipe = models.Recipe(**recipe.model_dump(exclude={"ingredients"}), author_id=current_user_id)
     try:
         db.add(db_recipe)
+        db.flush()
+        for ing_data in recipe.ingredients:
+            db_ingredient = db.query(models.Ingredient).filter(
+                models.Ingredient.name == ing_data.name.lower().strip()
+            ).first()
+
+            if not db_ingredient:
+                db_ingredient = models.Ingredient(name=ing_data.name.lower().strip())
+                db.add(db_ingredient)
+                db.flush()
+
+            recipe_ing = models.RecipeIngredient(
+                recipe_id=db_recipe.id,
+                ingredient_id=db_ingredient.id,
+                amount=ing_data.amount,
+                unit=ing_data.unit
+            )
+            db.add(recipe_ing)
+
         db.commit()
         db.refresh(db_recipe)
         return db_recipe
@@ -110,20 +129,44 @@ def delete_recipe(recipe_id: int, db: Session = Depends(get_db), current_user_id
     return {"message": "Рецепт был удалён"}
 
 @app.put("/recipes/{recipe_id}", response_model=schemas.RecipeOut)
-def update_recipe(recipe_id: int,  updated_recipe: schemas.RecipeCreate, db: Session = Depends(get_db)):
+def update_recipe(recipe_id: int, updated_recipe: schemas.RecipeCreate, db: Session = Depends(get_db), current_user_id: int = Depends(get_current_user)):
+    db_recipe = db.query(models.Recipe).filter(models.Recipe.id == recipe_id).first()
+
+    if not db_recipe or db_recipe.author_id != current_user_id:
+        raise HTTPException(status_code = 403, detail="У вас нет прав для изменения этого рецепта")
+
+    update_data = updated_recipe.model_dump(exclude={"ingredients"})
+    for key, value in update_data.items():
+        setattr(db_recipe, key, value)
+
     try:
-        db_recipe = db.query(models.Recipe).get(recipe_id)
-        if not db_recipe:
-            raise HTTPException(status_code=404, detail="Рецепт не найден")
-        updated_data = updated_recipe.model_dump()
-        for key, value in updated_data.items():
-            setattr(db_recipe, key, value)
+        db.query(models.RecipeIngredient).filter(models.RecipeIngredient.recipe_id == recipe_id).delete()
+
+        for img_data in updated_recipe.ingredients:
+            db_ingredient = db.query(models.Ingredient).filter(
+                models.Ingredient.name == img_data.name.lower().strip()
+            ).first()
+
+            if not db_ingredient:
+                db_ingredient = models.Ingredient(name=img_data.name.lower().strip())
+                db.add(db_ingredient)
+                db.flush()
+
+            new_recipe_ing = models.RecipeIngredient(
+                recipe_id=db_recipe.id,
+                ingredient_id=db_ingredient.id,
+                amount=img_data.amount,
+                unit=img_data.unit
+            )
+            db.add(new_recipe_ing)
+
         db.commit()
         db.refresh(db_recipe)
         return db_recipe
+
     except IntegrityError:
         db.rollback()
-        raise HTTPException(status_code=400, detail="Название уже занято, придумай другое")
+        raise HTTPException(status_code=400, detail="Ошибка, название уже занято или данные некорректны")
 
 @app.post("/recipes/{recipe_id}/image")
 def upload_recipe_image(

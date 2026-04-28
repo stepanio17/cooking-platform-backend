@@ -1,5 +1,8 @@
 from pydantic import BaseModel, Field
-from typing import Optional
+from typing import Optional, List
+
+from models import Ingredient
+
 
 class RecipeBase(BaseModel):
     title: str = Field(..., min_length=1, max_length=70, description="Название не может быть пустым")
@@ -22,12 +25,28 @@ class UserOut(UserBase):
     class Config:
         from_attributes = True
 
-class RecipeCreate(RecipeBase):
-    pass
+class RecipeIngredientCreate(BaseModel):
+    name: str = Field(..., min_length=1)
+    amount: float = Field(..., gt=0)
+    unit: str = Field(..., min_length=1)
 
-class RecipeOut(RecipeCreate):
+
+class RecipeIngredientOut(BaseModel):
     id: int
+    ingredient_id: int
+    name: str
+    amount: float
+    unit: str
+
     class Config:
         from_attributes = True
 
+class RecipeCreate(RecipeBase):
+    ingredients: List[RecipeIngredientCreate] = []
 
+class RecipeOut(RecipeBase):
+    id: int
+    author_id: int
+    ingredients: List[RecipeIngredientOut] = []
+    class Config:
+        from_attributes = True
