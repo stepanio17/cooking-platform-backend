@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Text, SmallInteger, ForeignKey, Float
+from sqlalchemy import Column, Integer, String, Text, SmallInteger, ForeignKey, Float, UniqueConstraint
 from sqlalchemy.orm import relationship
 from database import Base
 
@@ -47,3 +47,12 @@ class RecipeIngredient(Base):
     @property
     def name(self):
         return self.ingredient.name
+
+class Favorite(Base):
+    __tablename__ = 'favorites'
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
+    recipe_id = Column(Integer, ForeignKey('recipes.id', ondelete='CASCADE'), nullable=False)
+
+    __table_args__ = (UniqueConstraint('user_id', 'recipe_id', name='user_recipe_uc'),)

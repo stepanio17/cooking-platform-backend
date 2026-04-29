@@ -30,8 +30,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.mount("/static", StaticFiles(directory="static"), name="static")
-
 def get_current_user(token: str = Depends(oauth2_scheme)):
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
@@ -69,6 +67,33 @@ def create_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(new_user)
     return new_user
+
+@app.post("/recipes/{recipe_id}/favorite")
+def toggle_favorite(recipe_id: int, db: Session = Depends(get_db), current_user_id: int = Depends(get_current_user)):
+    recipe = db.query(models.Recipe).filter(models.Recipe.id == recipe_id).first()
+    if not recipe:
+        raise HTTPException(status_code=404, detail="Рецепт не найден")
+
+    favorite = db.query(models.Favorite).filter(
+        models.Favorite.user_id == current_user_id,
+        models.Favorite.recipe_id == recipe_id).first()
+
+    if favorite:
+        db.delete(favorite)
+        db.commit()
+        return {"message": "Удалено из избранного", "status": "removed"}
+    else:
+        new_favorite = models.Favorite(user_id=current_user_id, recipe_id=recipe_id)
+        db.add(new_favorite)
+        db.commit()
+        return {"message": "Добавлено в избранное", "status": "added"}
+
+@app.get("/favorites", response_model=List[schemas.RecipeOut])
+def get_favorites(db: Session = Depends(get_db), current_user_id: int = Depends(get_current_user)):
+    favorites = db.query(models.Favorite).filter(models.Favorite.user_id == current_user_id).all()
+    recipes_ids = [fav.recipe_id for fav in favorites]
+    recipes = db.query(models.Recipe).filter(models.Recipe.id.in_(recipes_ids)).all()
+    return recipes
 
 @app.get("/recipes", response_model=List[schemas.RecipeOut])
 def get_recipes(search: str = None, category: str = None, sort_by: str = "newest", db: Session = Depends(get_db)):
@@ -188,3 +213,5 @@ def upload_recipe_image(
     db.commit()
 
     return {"info": "Файл сохранён", "url": db_recipe.image_url}
+
+app.mount("/static", StaticFiles(directory="static"), name="static")
