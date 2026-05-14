@@ -97,7 +97,7 @@ def get_favorites(db: Session = Depends(get_db), current_user_id: int = Depends(
     return recipes
 
 @app.get("/recipes", response_model=List[schemas.RecipeOut])
-def get_recipes(search: str = None, category: str = None, sort_by: str = "newest", db: Session = Depends(get_db)):
+def get_recipes(search: str = None, category: str = None, sort_by: str = "newest", ingredient_search: str = None, db: Session = Depends(get_db)):
     query = db.query(models.Recipe).options(joinedload(models.Recipe.steps))
 
     if search:
@@ -106,6 +106,12 @@ def get_recipes(search: str = None, category: str = None, sort_by: str = "newest
 
     if category and category != "Все":
         query = query.filter(models.Recipe.category == category)
+
+    if ingredient_search:
+        ing_search_lower = f"%{ingredient_search.lower()}%"
+        query = query.join(models.Recipe.ingredients).join(models.RecipeIngredient.ingredient).filter(
+            func.lower(models.Ingredient.name).like(ing_search_lower)
+        ).distinct()
 
     if sort_by == "newest":
         query = query.order_by(desc(models.Recipe.id))
