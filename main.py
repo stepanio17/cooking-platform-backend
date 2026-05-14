@@ -97,7 +97,7 @@ def get_favorites(db: Session = Depends(get_db), current_user_id: int = Depends(
     return recipes
 
 @app.get("/recipes", response_model=List[schemas.RecipeOut])
-def get_recipes(search: str = None, category: str = None, sort_by: str = "newest", ingredient_search: str = None, db: Session = Depends(get_db)):
+def get_recipes(search: str = None, category: str = None, sort_by: str = "newest", ingredient_search: str = None, exclude_ingredient: str = None, db: Session = Depends(get_db)):
     query = db.query(models.Recipe).options(joinedload(models.Recipe.steps))
 
     if search:
@@ -112,6 +112,13 @@ def get_recipes(search: str = None, category: str = None, sort_by: str = "newest
         query = query.join(models.Recipe.ingredients).join(models.RecipeIngredient.ingredient).filter(
             func.lower(models.Ingredient.name).like(ing_search_lower)
         ).distinct()
+
+    if exclude_ingredient:
+        exclude_lower = f"%{exclude_ingredient.lower()}%"
+
+        forbidden_recipes_ids = db.query(models.RecipeIngredient.recipe_id).join(
+            models.Ingredient).filter(func.lower(models.Ingredient.name).like(exclude_lower))
+        query = query.filter(models.Recipe.id.notin_(forbidden_recipes_ids))
 
     if sort_by == "newest":
         query = query.order_by(desc(models.Recipe.id))
