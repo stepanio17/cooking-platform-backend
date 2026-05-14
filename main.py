@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer
 from fastapi.staticfiles import StaticFiles
 from auth import verify_password, create_access_token, SECRET_KEY, ALGORITHM, get_password_hash
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func, desc
 from typing import List
 from jose import jwt, JWTError
@@ -12,6 +12,7 @@ import os
 import shutil
 import models
 import schemas
+import uuid
 from database import engine, get_db
 
 os.makedirs("static/images", exist_ok=True)
@@ -97,7 +98,7 @@ def get_favorites(db: Session = Depends(get_db), current_user_id: int = Depends(
 
 @app.get("/recipes", response_model=List[schemas.RecipeOut])
 def get_recipes(search: str = None, category: str = None, sort_by: str = "newest", db: Session = Depends(get_db)):
-    query = db.query(models.Recipe)
+    query = db.query(models.Recipe).options(joinedload(models.Recipe.steps))
 
     if search:
         search_lower = f"%{search.lower()}%"
@@ -111,9 +112,18 @@ def get_recipes(search: str = None, category: str = None, sort_by: str = "newest
 
     return query.all()
 
+@app.post("/upload-image")
+def upload_image(file: UploadFile = File(...)):
+    file_extension = file.filename.rsplit(".")[-1]
+    unique_filename = f"{uuid.uuid4()}.{file_extension}"
+    file_path = f"static/images/{unique_filename}"
+    with open(file_path, "wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
+    return {"image_url": f"http://127.0.0.1:8000/static/images/{unique_filename}"}
+
 @app.post("/recipes", response_model=schemas.RecipeOut)
 def create_recipe(recipe: schemas.RecipeCreate, db: Session = Depends(get_db), current_user_id: int = Depends(get_current_user)):
-    db_recipe = models.Recipe(**recipe.model_dump(exclude={"ingredients"}), author_id=current_user_id)
+    db_recipe = models.Recipe(**recipe.model_dump(exclude={"ingredients", "steps"}), author_id=current_user_id)
     try:
         db.add(db_recipe)
         db.flush()
@@ -134,6 +144,15 @@ def create_recipe(recipe: schemas.RecipeCreate, db: Session = Depends(get_db), c
                 unit=ing_data.unit
             )
             db.add(recipe_ing)
+
+        for step_data in recipe.steps:
+            new_step = models.RecipeStep(
+                recipe_id=db_recipe.id,
+                step_number=step_data.step_number,
+                instruction=step_data.instruction,
+                image_url=step_data.image_url
+            )
+            db.add(new_step)
 
         db.commit()
         db.refresh(db_recipe)
@@ -160,7 +179,7 @@ def update_recipe(recipe_id: int, updated_recipe: schemas.RecipeCreate, db: Sess
     if not db_recipe or db_recipe.author_id != current_user_id:
         raise HTTPException(status_code = 403, detail="У вас нет прав для изменения этого рецепта")
 
-    update_data = updated_recipe.model_dump(exclude={"ingredients"})
+    update_data = updated_recipe.model_dump(exclude={"ingredients", "steps"})
     for key, value in update_data.items():
         setattr(db_recipe, key, value)
 
@@ -184,6 +203,16 @@ def update_recipe(recipe_id: int, updated_recipe: schemas.RecipeCreate, db: Sess
                 unit=img_data.unit
             )
             db.add(new_recipe_ing)
+
+        db.query(models.RecipeStep).filter(models.RecipeStep.recipe_id == recipe_id).delete()
+        for step_data in updated_recipe.steps:
+            new_step = models.RecipeStep(
+                recipe_id=db_recipe.id,
+                step_number=step_data.step_number,
+                instruction=step_data.instruction,
+                image_url=step_data.image_url
+            )
+            db.add(new_step)
 
         db.commit()
         db.refresh(db_recipe)

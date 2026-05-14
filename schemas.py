@@ -3,6 +3,20 @@ from typing import Optional, List
 
 from models import Ingredient
 
+class RecipeStepBase(BaseModel):
+    step_number: int
+    instruction: str
+    image_url: Optional[str] = None
+
+class RecipeStepCreate(RecipeStepBase):
+    pass
+
+class RecipeStep(RecipeStepBase):
+    id: int
+    recipe_id: int
+
+    class Config:
+        from_attributes = True
 
 class RecipeBase(BaseModel):
     title: str = Field(..., min_length=1, max_length=70, description="Название не может быть пустым")
@@ -43,10 +57,12 @@ class RecipeIngredientOut(BaseModel):
 
 class RecipeCreate(RecipeBase):
     ingredients: List[RecipeIngredientCreate] = []
+    steps: List[RecipeStepCreate] = []
 
 class RecipeOut(RecipeBase):
     id: int
     author_id: int
     ingredients: List[RecipeIngredientOut] = []
+    steps: List[RecipeStep] = []
     class Config:
         from_attributes = True

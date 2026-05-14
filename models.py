@@ -26,6 +26,8 @@ class Recipe(Base):
     author = relationship("User", back_populates="recipes")
     ingredients = relationship('RecipeIngredient', back_populates='recipe', cascade="all, delete-orphan")
 
+    steps = relationship("RecipeStep", back_populates="recipe", cascade="all, delete-orphan")
+
 class Ingredient(Base):
     __tablename__ = 'ingredients'
 
@@ -56,3 +58,14 @@ class Favorite(Base):
     recipe_id = Column(Integer, ForeignKey('recipes.id', ondelete='CASCADE'), nullable=False)
 
     __table_args__ = (UniqueConstraint('user_id', 'recipe_id', name='user_recipe_uc'),)
+
+class RecipeStep(Base):
+    __tablename__ = 'recipe_steps'
+
+    id = Column(Integer, primary_key=True, index=True)
+    recipe_id = Column(Integer, ForeignKey("recipes.id"))
+    step_number = Column(Integer)
+    instruction = Column(String)
+    image_url = Column(String, nullable=True)
+
+    recipe = relationship('Recipe', back_populates='steps')

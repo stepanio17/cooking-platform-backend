@@ -19,6 +19,7 @@ services:
       container_name: cooking_backend
       volumes:
         - .:/app
+        - ./static:/app/static
       ports:
         - "8000:8000"
       environment:
