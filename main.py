@@ -228,6 +228,34 @@ def update_recipe(recipe_id: int, updated_recipe: schemas.RecipeCreate, db: Sess
         db.rollback()
         raise HTTPException(status_code=400, detail="Ошибка, название уже занято или данные некорректны")
 
+@app.post("/recipes/{recipe_id}/view")
+def increment_view(recipe_id: int, db: Session = Depends(get_db)):
+    db_recipe = db.query(models.Recipe).filter(models.Recipe.id == recipe_id).first()
+    if not db_recipe:
+        raise HTTPException(status_code=404, detail="Рецепт не найден")
+    db_recipe.views += 1
+    db.commit()
+    return {"views": db_recipe.views}
+
+@app.post("/recipes/{recipe_id}/rate")
+def rate_recipe(recipe_id: int, is_positive: bool, db: Session = Depends(get_db), current_user_id: int = Depends(get_current_user)):
+    existing_rating = db.query(models.Rating).filter(
+        models.Rating.user_id == current_user_id,
+        models.Rating.recipe_id == recipe_id
+    ).first()
+
+    if existing_rating:
+        if existing_rating.is_positive == is_positive:
+            db.delete(existing_rating)
+        else:
+            existing_rating.is_positive = is_positive
+    else:
+        new_rating = models.Rating(user_id=current_user_id, recipe_id=recipe_id, is_positive=is_positive)
+        db.add(new_rating)
+
+    db.commit()
+    return {"success": True}
+
 @app.post("/recipes/{recipe_id}/image")
 def upload_recipe_image(
         recipe_id: int,

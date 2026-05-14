@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Text, SmallInteger, ForeignKey, Float, UniqueConstraint
+from sqlalchemy import Column, Integer, String, Text, SmallInteger, ForeignKey, Float, UniqueConstraint, Boolean
 from sqlalchemy.orm import relationship
 from database import Base
 
@@ -25,8 +25,30 @@ class Recipe(Base):
     author_id = Column(Integer, ForeignKey('users.id', ondelete='NO ACTION'), nullable=False)
     author = relationship("User", back_populates="recipes")
     ingredients = relationship('RecipeIngredient', back_populates='recipe', cascade="all, delete-orphan")
+    views = Column(Integer, default=0)
 
+    ratings = relationship("Rating", back_populates="recipe", cascade="all, delete-orphan")
     steps = relationship("RecipeStep", back_populates="recipe", cascade="all, delete-orphan")
+
+    @property
+    def likes_count(self):
+        return sum(1 for r in self.ratings if r.is_positive)
+
+    @property
+    def dislikes_count(self):
+        return sum(1 for r in self.ratings if not r.is_positive)
+
+class Rating(Base):
+    __tablename__ = 'ratings'
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
+    recipe_id = Column(Integer, ForeignKey('recipes.id', ondelete='CASCADE'), nullable=False)
+    is_positive = Column(Boolean, nullable=False)
+
+    recipe = relationship("Recipe", back_populates="ratings")
+
+    __table_args__ = (UniqueConstraint('user_id', 'recipe_id', name='rating_rating_uc'),)
 
 class Ingredient(Base):
     __tablename__ = 'ingredients'

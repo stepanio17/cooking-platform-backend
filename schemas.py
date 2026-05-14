@@ -64,5 +64,8 @@ class RecipeOut(RecipeBase):
     author_id: int
     ingredients: List[RecipeIngredientOut] = []
     steps: List[RecipeStep] = []
+    views: int = 0
+    likes_count: int = 0
+    dislikes_count: int = 0
     class Config:
         from_attributes = True
