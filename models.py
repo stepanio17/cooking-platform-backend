@@ -91,3 +91,25 @@ class RecipeStep(Base):
     image_url = Column(String, nullable=True)
 
     recipe = relationship('Recipe', back_populates='steps')
+
+class Collection(Base):
+    __tablename__ = 'collections'
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(50), nullable=False, unique=True, index=True)
+    user_id = Column(Integer, ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
+
+    user = relationship("User")
+    items = relationship('CollectionRecipe', back_populates='collection', cascade="all, delete-orphan")
+
+class CollectionRecipe(Base):
+    __tablename__ = 'collection_recipes'
+
+    id = Column(Integer, primary_key=True, index=True)
+    collection_id = Column(Integer, ForeignKey('collections.id', ondelete='CASCADE'), nullable=False)
+    recipe_id = Column(Integer, ForeignKey('recipes.id', ondelete='CASCADE'), nullable=False)
+
+    collection = relationship('Collection', back_populates='items')
+    recipe = relationship('Recipe')
+
+    __table_args__ = (UniqueConstraint('collection_id', 'recipe_id', name='collection_recipe_uc'),)

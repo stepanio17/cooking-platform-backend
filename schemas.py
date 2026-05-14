@@ -69,3 +69,19 @@ class RecipeOut(RecipeBase):
     dislikes_count: int = 0
     class Config:
         from_attributes = True
+
+class CollectionBase(BaseModel):
+    name: str = Field(..., min_length=1, max_length=50, description="Название коллекции")
+
+class CollectionCreate(CollectionBase):
+    pass
+
+class CollectionOut(CollectionBase):
+    id: int
+    user_id: int
+
+    class Config:
+        from_attributes = True
+
+class CollectionWithRecipesOut(CollectionOut):
+    recipes: List[RecipeOut] = []

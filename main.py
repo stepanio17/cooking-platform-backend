@@ -309,4 +309,58 @@ def upload_recipe_image(
 
     return {"info": "Файл сохранён", "url": db_recipe.image_url}
 
+@app.post("/collections", response_model=schemas.CollectionOut)
+def create_collection(collection: schemas.CollectionCreate, db: Session = Depends(get_db), current_user_id: int = Depends(get_current_user)):
+    new_collection = models.Collection(name=collection.name, user_id=current_user_id)
+    db.add(new_collection)
+    db.commit()
+    db.refresh(new_collection)
+    return new_collection
+
+@app.get("/collections", response_model=List[schemas.CollectionOut])
+def get_collections(db: Session = Depends(get_db), current_user_id: int = Depends(get_current_user)):
+    return db.query(models.Collection).filter(models.Collection.user_id == current_user_id).all()
+
+@app.post("/collections/{collection_id}/recipes/{recipe_id}")
+def add_recipe_to_collection(collection_id: int, recipe_id: int, db: Session = Depends(get_db), current_user_id: int = Depends(get_current_user)):
+    collection = db.query(models.Collection).filter(models.Collection.id == collection_id, models.Collection.user_id == current_user_id).first()
+    if not collection:
+        raise HTTPException(status_code=403, detail="Коллекция не найдена")
+
+    new_link = models.CollectionRecipe(collection_id=collection.id, recipe_id=recipe_id)
+    try:
+        db.add(new_link)
+        db.commit()
+        return {"success": True}
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=400, detail="Рецепт уже в коллекции")
+
+@app.delete("/collections/{collection_id}/recipes/{recipe_id}")
+def remove_recipe_from_collection(collection_id: int, recipe_id: int, db: Session = Depends(get_db), current_user_id: int = Depends(get_current_user)):
+    link = db.query(models.CollectionRecipe).join(models.Collection).filter(
+        models.Collection.user_id == current_user_id,
+        models.CollectionRecipe.collection_id == collection_id,
+        models.CollectionRecipe.recipe_id == recipe_id
+    ).first()
+
+    if not link:
+        raise HTTPException(status_code=404, detail="Коллекция не найдена")\
+
+    db.delete(link)
+    db.commit()
+    return {"success": True}
+
+@app.get("/collections/{collection_id}", response_model=schemas.CollectionWithRecipesOut)
+def get_collection_details(collection_id: int, db: Session = Depends(get_db), current_user_id: int = Depends(get_current_user)):
+    collection = db.query(models.Collection).filter(models.Collection.id == collection_id, models.Collection.user_id == current_user_id).first()
+    if not collection:
+        raise HTTPException(status_code=404, detail="Коллекция не найдена")
+
+    recipe_links = db.query(models.CollectionRecipe).filter(models.CollectionRecipe.collection_id == collection_id).all()
+    recipe_ids = [link.recipe_id for link in recipe_links]
+    recipes = db.query(models.Recipe).filter(models.Recipe.id.in_(recipe_ids)).all()
+
+    return {"id": collection.id, "name": collection.name, "user_id": collection.user_id, "recipes": recipes}
+
 app.mount("/static", StaticFiles(directory="static"), name="static")
