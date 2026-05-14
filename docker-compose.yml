@@ -22,6 +22,7 @@ services:
         - ./static:/app/static
       ports:
         - "8000:8000"
+      restart: on-failure
       environment:
         - DATABASE_URL=postgresql://user:password@db:5432/cooking_platform
       depends_on:

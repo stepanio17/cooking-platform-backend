@@ -3,6 +3,8 @@ from fastapi import FastAPI, Depends, HTTPException, File, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer
 from fastapi.staticfiles import StaticFiles
+from sqlalchemy.sql.functions import current_user
+
 from auth import verify_password, create_access_token, SECRET_KEY, ALGORITHM, get_password_hash
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func, desc
@@ -68,6 +70,29 @@ def create_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(new_user)
     return new_user
+
+@app.get("/users/me", response_model=schemas.UserOut)
+def get_me(db: Session = Depends(get_db), current_user_id: int = Depends(get_current_user)):
+    user = db.query(models.User).filter(models.User.id == current_user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Пользователь не найден")
+    return user
+
+@app.put("/users/me", response_model=schemas.UserOut)
+def update_me(updated_data: schemas.UserBase, db: Session = Depends(get_db), current_user_id: int = Depends(get_current_user)):
+    user = db.query(models.User).filter(models.User.id == current_user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Пользователь не найден")
+    for key, value in updated_data.dict().items():
+        setattr(user, key, value)
+
+    try:
+        db.commit()
+        db.refresh(user)
+        return user
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=400, detail="Этот email или имя пользователя уже заняты")
 
 @app.post("/recipes/{recipe_id}/favorite")
 def toggle_favorite(recipe_id: int, db: Session = Depends(get_db), current_user_id: int = Depends(get_current_user)):
