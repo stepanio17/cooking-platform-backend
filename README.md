@@ -28,6 +28,7 @@
 1. **Создайте в git корневую папку для проекта и перейдите в неё:**
 
 mkdir recipe-platform
+
 cd recipe-platform
 
 2. **Склонируйте серверную и клиентскую части в созданную папку (обязательно используйте названия папок backend и frontend):**
@@ -39,6 +40,7 @@ git clone https://github.com/stepanio17/cooking-platform-backend backend
 3. **Перейдите в папку бэкенда, где находится конфигурационный файл, и запустите сборку:**
 
 cd backend
+
 docker compose up --build
 
 4. **После завершения сборки проект будет доступен по адресу:**
